@@ -16,6 +16,19 @@ npm run verify         # end-to-end checks against the preview (needs Chromium)
 
 Vite, React 19, TypeScript, React Router (data router), plain CSS with design tokens in `src/styles/tokens.css`, and `motion` only for scroll-bound values (hero depth, editorial parallax, garment study). Fonts are self-hosted OFL faces: Archivo (condensed display) and Hanken Grotesk (interface).
 
+## The home page
+
+The home page is one scroll-driven film that runs from 18:00 to midnight (`src/home/`). A pinned stage holds six chapters that dissolve into each other while a clock in the corner keeps time with the scroll:
+
+1. **Clocked off** (`SceneOpen`): the campaign frame opens from a slit to full bleed as the wordmark rises; scrolling pushes in on the jacket.
+2. **The pieces** (`ScenePieces`): each of the six pieces wipes up as a full field of its own cloth colour and surface, with its name, price and link.
+3. **Turnaround** (`SceneAngles`): the camera travels round a 3D ring of the jacket photographs (front, worn, draped, close).
+4. **The label** (`SceneLabel`): statement and facts read from the catalogue, over the jacket on the chair.
+5. **Up close** (`SceneDive`): from the whole look into the collar, zip pull, zip and weave.
+6. **Last light** (`SceneClose`): the opening frame returns graded to night and closes on the shop.
+
+`src/home/chapters.tsx` holds the chapter lengths; the clock, the chapter index and the header anchors (`#collection`, `#about`, `#details`, ...) all read from it. Keyboard focus landing in a chapter that is off screen scrolls the film to it. With `prefers-reduced-motion` the film is replaced by the same chapters as still frames.
+
 ## Where things live
 
 - `src/data/catalogue.ts` is the single typed source for products, colours, sizes, prices, looks, search and sort.

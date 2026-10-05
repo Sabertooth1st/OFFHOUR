@@ -13,13 +13,14 @@ export function Header() {
   const { open } = useUi();
   const [solid, setSolid] = useState(!isHome);
 
-  // Over the campaign image until the hero leaves, then a compact chalk bar.
+  // Over the film until it ends, then a compact bar.
   useEffect(() => {
     if (!isHome) {
       setSolid(true);
       return;
     }
-    const hero = document.getElementById('hero');
+    // Stays over the picture for the whole film; the still (reduced-motion) version only keeps it over the first frame.
+    const hero = document.querySelector('.film:not(.film--static)') ?? document.getElementById('hero');
     if (!hero || typeof IntersectionObserver === 'undefined') {
       setSolid(true);
       return;

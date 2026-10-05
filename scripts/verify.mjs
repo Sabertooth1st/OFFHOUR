@@ -92,11 +92,18 @@ for (const [w, h] of [
 
   // Header state
   await go(page, '/');
-  const overAtTop = await page.locator('.site-header').evaluate((el) => el.classList.contains('is-over'));
-  await page.evaluate(() => window.scrollTo(0, document.getElementById('hero').offsetHeight + 50));
-  await page.waitForTimeout(500);
-  const solidAfter = await page.locator('.site-header').evaluate((el) => el.classList.contains('is-solid'));
-  check('header over hero then solid after it', overAtTop && solidAfter);
+  const headerIs = (cls) =>
+    page
+      .waitForFunction((cls) => document.querySelector('.site-header').classList.contains(cls), cls, { timeout: 4000 })
+      .then(() => true, () => false);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const overAtTop = await headerIs('is-over');
+  await page.evaluate(() => window.scrollTo(0, document.getElementById('film').offsetHeight * 0.5));
+  await page.waitForTimeout(600);
+  const overMid = await headerIs('is-over');
+  await page.evaluate(() => window.scrollTo(0, document.getElementById('film').offsetHeight + 50));
+  const solidAfter = await headerIs('is-solid');
+  check('header stays over the film, solid after it', overAtTop && overMid && solidAfter);
 
   // Search
   const searchBtn = page.getByRole('button', { name: 'Search', exact: true });
@@ -236,56 +243,108 @@ for (const [w, h] of [
   await go(page, '/shop/does-not-exist');
   check('unknown product shows not found', (await page.locator('.notfound').count()) === 1);
 
-  // Pinned chapters follow scroll in both directions
+  // The film follows scroll in both directions
   await go(page, '/');
+  // Scroll to a fraction of chapter `id`, using the start and length each anchor carries (in viewports).
   const at = (id, f) =>
     page.evaluate(
       ([id, f]) => {
-        const el = document.getElementById(id);
-        const top = window.scrollY + el.getBoundingClientRect().top;
-        window.scrollTo(0, top + (el.offsetHeight - window.innerHeight) * f);
+        const film = document.getElementById('film');
+        const mark = document.getElementById(id);
+        const top = window.scrollY + film.getBoundingClientRect().top;
+        window.scrollTo(0, top + (+mark.dataset.start + f * +mark.dataset.len) * window.innerHeight);
       },
       [id, f],
     );
-  const current = (sel) => page.evaluate((sel) => document.querySelector(`${sel} [aria-current="true"]`)?.textContent?.trim(), sel);
+  const current = (sel) => page.evaluate((sel) => document.querySelector(`${sel} [aria-current]`)?.textContent?.trim(), sel);
+  const clock = () => page.locator('.film__clock-time').innerText();
+  // Software rendering in CI is slow after a jump; wait until the clock shows the time for this scroll position.
+  const settle = () =>
+    page
+      .waitForFunction(
+        () => {
+          const film = document.getElementById('film');
+          const travel = film.offsetHeight - window.innerHeight;
+          const p = Math.min(1, Math.max(0, (window.scrollY - film.offsetTop) / travel));
+          const m = Math.round(18 * 60 + p * 360) % 1440;
+          const want = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+          return document.querySelector('.film__clock-time')?.textContent === want;
+        },
+        null,
+        { timeout: 8000, polling: 100 },
+      )
+      .then(() => page.waitForTimeout(400));
+  // Router scroll restoration may bring back an earlier position in this tab.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(700);
+  check('clock starts at 18:00', (await clock()) === '18:00', await clock());
+
   const runSeq = [];
-  for (const f of [0.05, 0.25, 0.45, 0.62, 0.78, 0.97, 0.45, 0.05]) {
+  for (const f of [0.05, 0.25, 0.42, 0.55, 0.78, 0.97, 0.42, 0.05]) {
     await at('collection', f);
-    await page.waitForTimeout(350);
-    runSeq.push(await current('.run__nav'));
+    await settle();
+    runSeq.push(await current('.pieces__nav'));
   }
   check(
-    'collection run steps through all six pieces and back',
+    'the pieces step through all six and back',
     JSON.stringify(runSeq) ===
       JSON.stringify(['Form Shell Jacket', 'Field Wool Overshirt', 'Heavyweight Tee', 'Relaxed Pleat Trouser', 'Volume Hoodie', 'Rib Knit', 'Heavyweight Tee', 'Form Shell Jacket']),
     runSeq.join(' > '),
   );
-  await at('collection', 0.6);
-  await page.waitForTimeout(400);
-  check('run panel links to the active piece', (await page.locator('.run__info a').getAttribute('href')) === '/shop/relaxed-pleat-trouser');
-  await page.locator('.run__nav').getByRole('button', { name: 'Rib Knit' }).click();
+  await at('collection', 0.42);
+  await settle();
+  check('header and clock turn dark over the chalk tee', await page.evaluate(() => document.documentElement.dataset.ink === 'dark'));
+  await at('collection', 0.55);
+  await settle();
+  const clips = await page.evaluate(() => [...document.querySelectorAll('.film .piece')].map((p) => getComputedStyle(p).clipPath));
+  check('trouser field is uncovered and the hoodie still waits below', /inset\(0(%|px)?/.test(clips[3]) && /inset\(100%/.test(clips[4]), clips.slice(3, 5).join(' | '));
+  check('header back to light over the charcoal trouser', await page.evaluate(() => document.documentElement.dataset.ink === 'light'));
+  await page.locator('.pieces__nav').getByRole('button', { name: 'Rib Knit' }).click();
   await page.waitForTimeout(1600);
-  check('run list button jumps to that piece', (await current('.run__nav')) === 'Rib Knit');
+  check('piece list button jumps to that piece', (await current('.pieces__nav')) === 'Rib Knit');
 
   const angSeq = [];
-  for (const f of [0.1, 0.37, 0.63, 0.9, 0.37]) {
+  for (const f of [0.1, 0.33, 0.55, 0.75, 0.97, 0.33]) {
     await at('angles', f);
-    await page.waitForTimeout(350);
-    angSeq.push(await current('.angles__list'));
+    await settle();
+    angSeq.push(await current('.ring__views'));
   }
-  check('angles step Front, Worn, Draped, Close and back', angSeq.join(',') === 'Front,Worn,Draped,Close,Worn', angSeq.join(','));
+  check('turnaround goes Front, Worn, Draped, Close, Front and back', angSeq.join(',') === 'Front,Worn,Draped,Close,Front,Worn', angSeq.join(','));
+  await at('angles', 0.33);
+  await settle();
+  const spin = await page.locator('.ring__spin').evaluate((e) => getComputedStyle(e).transform);
+  check('the ring is turned in 3D mid-chapter', spin.startsWith('matrix3d'), spin.slice(0, 40));
 
   const diveSeq = [];
   for (const f of [0.05, 0.3, 0.48, 0.64, 0.92, 0.3]) {
     await at('details', f);
-    await page.waitForTimeout(350);
+    await settle();
     diveSeq.push(await current('.dive__steps'));
   }
   check('detail dive goes jacket, collar, zip pull, zip, weave and back', diveSeq.join(',') === 'Jacket,Collar,Zip pull,Zip,Weave,Collar', diveSeq.join(','));
   await at('details', 0.92);
-  await page.waitForTimeout(300);
+  await settle();
   const layers = await page.evaluate(() => [...document.querySelectorAll('.dive__layer')].map((l) => +(+getComputedStyle(l).opacity).toFixed(2)));
   check('only the weave layer shows at the end of the dive', layers[2] === 1 && layers[0] === 0 && layers[1] === 0, JSON.stringify(layers));
+
+  await at('last-light', 1);
+  await settle();
+  check('clock reaches 00:00 at the end of the film', (await clock()) === '00:00', await clock());
+  check('last chapter is current at the end', (await current('.film__index')) === '23:25Last light' || (await current('.film__index'))?.endsWith('Last light'), await current('.film__index'));
+
+  // Chapter index jumps; captions of other chapters never overlap the current one
+  await page.locator('.film__index').getByRole('button', { name: /Up close/ }).click();
+  await page.waitForTimeout(1800);
+  check('chapter index jumps to Up close', (await page.locator('.film__layer--details.is-current').count()) === 1);
+  const others = await page.evaluate(() =>
+    [...document.querySelectorAll('.film__layer:not(.is-current)')].map((l) => +(+getComputedStyle(l).opacity).toFixed(2)),
+  );
+  check('only the current chapter is visible once a dissolve ends', others.every((o) => o === 0), JSON.stringify(others));
+
+  // Keyboard focus landing in a chapter that is off screen brings it into view
+  await page.locator('.film .piece__btn').last().focus();
+  await page.waitForTimeout(800);
+  check('focusing a piece link scrolls the film to that piece', (await current('.pieces__nav')) === 'Rib Knit' && (await page.locator('.film__layer--collection.is-current').count()) === 1);
 
   // Identity facts come from the catalogue
   const facts = await page.locator('.fact dt').allInnerTexts();
@@ -330,7 +389,7 @@ for (const [w, h] of [
 {
   const { page, ctx, errors } = await newPage(390, 844);
   await go(page, '/');
-  check('mobile hero fills viewport', await page.evaluate(() => document.querySelector('.cine-hero__sticky').offsetHeight >= window.innerHeight - 2));
+  check('mobile film stage fills viewport', await page.evaluate(() => document.querySelector('.film__stage').offsetHeight >= window.innerHeight - 2));
   await page.screenshot({ path: 'verify-out/m390-hero.png' });
   check('desktop nav hidden, menu button visible', !(await page.locator('.site-header__nav').isVisible()) && (await page.getByRole('button', { name: 'Menu' }).isVisible()));
   await page.getByRole('button', { name: 'Menu' }).click();
@@ -341,12 +400,12 @@ for (const [w, h] of [
   await page.waitForURL('**/shop');
   check('menu link navigates and closes', (await page.locator('.overlay.is-shown').count()) === 0);
 
-  // Pinned chapters on a phone
+  // The film on a phone
   await go(page, '/');
-  await page.locator('#collection').scrollIntoViewIfNeeded();
+  await page.evaluate(() => document.getElementById('collection').scrollIntoView());
   await page.waitForTimeout(400);
-  check('mobile run shows the active piece', (await page.locator('.run__name').innerText()).length > 0);
-  await page.locator('#details').scrollIntoViewIfNeeded();
+  check('mobile pieces chapter is current with a piece selected', (await page.locator('.film__layer--collection.is-current').count()) === 1 && (await page.locator('.pieces__nav [aria-current]').count()) === 1);
+  await page.evaluate(() => document.getElementById('details').scrollIntoView());
   await page.waitForTimeout(400);
   check('mobile dive shows a step note', (await page.locator('.dive__note h3').count()) === 1);
 
@@ -384,15 +443,17 @@ for (const [w, h] of [
   const { page, ctx, errors } = await newPage(1440, 900, { reducedMotion: 'reduce' });
   await go(page, '/');
   check(
-    'reduced motion replaces pinned chapters with static layouts',
-    (await page.locator('.run--static').count()) === 1 && (await page.locator('.angles--static').count()) === 1 && (await page.locator('.dive--static').count()) === 1,
+    'reduced motion replaces the film with still chapters',
+    (await page.locator('.film--static').count()) === 1 && (await page.locator('.still').count()) === 6 && (await page.locator('.film__stage').count()) === 0,
   );
   const hidden = await page.evaluate(() => [...document.querySelectorAll('.reveal')].filter((e) => getComputedStyle(e).opacity !== '1').length);
   check('reduced motion shows all content', hidden === 0, `hidden=${hidden}`);
-  const wm = await page.locator('.cine-hero__photo').evaluate((e) => getComputedStyle(e).animationName);
+  const wm = await page.locator('.open__photo picture').evaluate((e) => getComputedStyle(e).animationName);
   check('reduced motion has no hero opening animation', wm === 'none', wm);
-  const zoom = await page.locator('.cine-hero__zoom').evaluate((e) => getComputedStyle(e).transform);
-  check('reduced motion has no hero scale', zoom === 'none' || zoom === 'matrix(1, 0, 0, 1, 0, 0)', zoom);
+  const letters = await page.locator('.open__mark span').first().evaluate((e) => getComputedStyle(e).animationName);
+  check('reduced motion has no wordmark animation', letters === 'none', letters);
+  const anchors = await page.evaluate(() => ['hero', 'collection', 'angles', 'about', 'details', 'last-light'].every((id) => document.getElementById(id)?.tagName === 'SECTION'));
+  check('reduced motion keeps every chapter anchor', anchors);
   await ctx.close();
   check('no console errors reduced motion', errors.length === 0, errors.slice(0, 3).join(' | '));
 }
