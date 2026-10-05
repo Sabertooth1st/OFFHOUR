@@ -1,10 +1,9 @@
-import { bySlug, LOOKS } from '../data/catalogue';
+import { bySlug } from '../data/catalogue';
 import { useUi } from '../state/ui';
 import { Overlay, type OverlayVariant } from './Overlay';
 import { BagPanel } from './panels/BagPanel';
 import { FabricPanel } from './panels/FabricPanel';
 import { InfoPanel } from './panels/InfoPanel';
-import { LookPanel } from './panels/LookPanel';
 import { MenuPanel } from './panels/MenuPanel';
 import { SearchPanel } from './panels/SearchPanel';
 
@@ -37,11 +36,6 @@ export function OverlayHost() {
       variant = 'dialog';
       label = 'Information';
       body = <InfoPanel topic={overlay.topic} />;
-      break;
-    case 'look':
-      variant = 'drawer';
-      label = `Shop this look: ${LOOKS.find((l) => l.id === overlay.lookId)?.title ?? ''}`;
-      body = <LookPanel lookId={overlay.lookId} />;
       break;
     case 'fabric':
       variant = 'lightbox';

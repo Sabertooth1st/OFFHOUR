@@ -17,8 +17,8 @@ export function MenuPanel() {
             </Link>
           </li>
           <li>
-            <HashLink hash="lookbook" onNavigate={done}>
-              Lookbook
+            <HashLink hash="details" onNavigate={done}>
+              Details
             </HashLink>
           </li>
           <li>

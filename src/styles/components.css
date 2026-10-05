@@ -312,7 +312,6 @@
 .field__help {
   margin-top: 10px;
   font-size: 0.875rem;
-  color: var(--charcoal);
 }
 .field__error {
   min-height: 0;

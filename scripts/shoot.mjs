@@ -1,7 +1,7 @@
 // Usage: node scripts/shoot.mjs <name> <width> <height> <path> [scrollY ...]
 import { chromium } from 'playwright-core';
 const [name, w, h, path = '/', ...ys] = process.argv.slice(2);
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const ctx = await browser.newContext({ viewport: { width: +w, height: +h }, deviceScaleFactor: 1, hasTouch: +w < 700, isMobile: +w < 700 });
 const page = await ctx.newPage();
 const errors = [];

@@ -13,7 +13,7 @@ const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`);
 };
 
-const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 
 async function newPage(width, height, opts = {}) {
   const ctx = await browser.newContext({
@@ -78,10 +78,10 @@ for (const [w, h] of [
   await page.getByRole('link', { name: 'Shop', exact: true }).first().click();
   await page.waitForURL('**/shop');
   check('nav Shop opens collection', page.url().endsWith('/shop'));
-  await page.getByRole('link', { name: 'Lookbook', exact: true }).first().click();
+  await page.getByRole('link', { name: 'Details', exact: true }).first().click();
   await page.waitForTimeout(700);
-  const lookTop = await page.evaluate(() => document.getElementById('lookbook')?.getBoundingClientRect().top ?? 9999);
-  check('Lookbook link lands on section', page.url().includes('#lookbook') && lookTop < 140 && lookTop > -40, `top=${Math.round(lookTop)}`);
+  const detTop = await page.evaluate(() => document.getElementById('details')?.getBoundingClientRect().top ?? 9999);
+  check('Details link lands on section', page.url().includes('#details') && detTop < 140 && detTop > -40, `top=${Math.round(detTop)}`);
   await page.getByRole('link', { name: 'About', exact: true }).first().click();
   await page.waitForTimeout(700);
   const aboutTop = await page.evaluate(() => document.getElementById('about')?.getBoundingClientRect().top ?? 9999);
@@ -93,7 +93,7 @@ for (const [w, h] of [
   // Header state
   await go(page, '/');
   const overAtTop = await page.locator('.site-header').evaluate((el) => el.classList.contains('is-over'));
-  await page.evaluate(() => window.scrollTo(0, window.innerHeight + 200));
+  await page.evaluate(() => window.scrollTo(0, document.getElementById('hero').offsetHeight + 50));
   await page.waitForTimeout(500);
   const solidAfter = await page.locator('.site-header').evaluate((el) => el.classList.contains('is-solid'));
   check('header over hero then solid after it', overAtTop && solidAfter);
@@ -236,55 +236,60 @@ for (const [w, h] of [
   await go(page, '/shop/does-not-exist');
   check('unknown product shows not found', (await page.locator('.notfound').count()) === 1);
 
-  // Garment study: both directions
+  // Pinned chapters follow scroll in both directions
   await go(page, '/');
-  const geo = await page.evaluate(() => {
-    const t = document.querySelector('.study__track');
-    const r = t.getBoundingClientRect();
-    return { top: r.top + window.scrollY, h: t.offsetHeight, vh: window.innerHeight };
-  });
-  check('study track is about two viewports tall', Math.abs(geo.h - geo.vh * 2) < 4, `${geo.h} vs ${geo.vh * 2}`);
-  const dist = geo.h - (geo.vh - 60);
-  const start = geo.top - 60;
-  const active = () => page.evaluate(() => [...document.querySelectorAll('.study .seg button')].findIndex((b) => b.getAttribute('aria-pressed') === 'true'));
-  const seq = [];
-  for (const f of [0.05, 0.5, 0.95, 0.5, 0.05]) {
-    await page.evaluate((y) => window.scrollTo(0, y), start + dist * f);
+  const at = (id, f) =>
+    page.evaluate(
+      ([id, f]) => {
+        const el = document.getElementById(id);
+        const top = window.scrollY + el.getBoundingClientRect().top;
+        window.scrollTo(0, top + (el.offsetHeight - window.innerHeight) * f);
+      },
+      [id, f],
+    );
+  const current = (sel) => page.evaluate((sel) => document.querySelector(`${sel} [aria-current="true"]`)?.textContent?.trim(), sel);
+  const runSeq = [];
+  for (const f of [0.05, 0.25, 0.45, 0.62, 0.78, 0.97, 0.45, 0.05]) {
+    await at('collection', f);
     await page.waitForTimeout(350);
-    seq.push(await active());
+    runSeq.push(await current('.run__nav'));
   }
-  check('study follows scroll down and back up', JSON.stringify(seq) === '[0,1,2,1,0]', JSON.stringify(seq));
-  await page.evaluate((y) => window.scrollTo(0, y), start + dist * 0.5);
-  await page.waitForTimeout(300);
-  const op = await page.evaluate(() => [...document.querySelectorAll('.study__stage .study__layer')].map((l) => +getComputedStyle(l).opacity));
-  check('only garment layer visible mid-study', op[1] > 0.95 && op[0] < 0.05 && op[2] < 0.05, JSON.stringify(op.map((n) => +n.toFixed(2))));
-  await page.screenshot({ path: 'verify-out/study-mid.png' });
-  await page.locator('.study').getByRole('button', { name: 'On body', exact: true }).click();
-  await page.waitForTimeout(1500);
-  check('On body control jumps and stays in sync', (await active()) === 2);
-  await page.locator('.study').getByRole('button', { name: 'Fabric', exact: true }).click();
-  await page.waitForTimeout(1500);
-  check('Fabric control jumps back', (await active()) === 0);
-
-  // Lookbook mapping
-  await go(page, '/');
-  await page.locator('#lookbook').scrollIntoViewIfNeeded();
-  const lookBtns = page.getByRole('button', { name: 'Shop this look' });
-  await lookBtns.nth(0).click();
-  await page.waitForTimeout(500);
-  const look1 = await page.locator('.look-item').allInnerTexts();
-  check('look 1 lists its three pieces with prices', look1.length === 3 && look1[0].includes('Form Shell Jacket') && look1[0].includes('CHF 240') && look1[1].includes('Heavyweight Tee') && look1[2].includes('Relaxed Pleat Trouser'), look1.map((s) => s.replace(/\n/g, ' ')).join(' | '));
-  await page.locator('.look-item').first().click();
-  await page.waitForURL('**/shop/form-shell-jacket');
-  check('look piece link opens product', true);
-  await go(page, '/');
-  await page.locator('#lookbook').scrollIntoViewIfNeeded();
-  await lookBtns.nth(1).click();
-  await page.waitForTimeout(500);
-  const look2 = await page.locator('.look-item').allInnerTexts();
-  check('look 2 lists its two pieces', look2.length === 2 && look2[0].includes('Volume Hoodie') && look2[1].includes('Field Wool Overshirt'), look2.map((s) => s.replace(/\n/g, ' ')).join(' | '));
-  await page.keyboard.press('Escape');
+  check(
+    'collection run steps through all six pieces and back',
+    JSON.stringify(runSeq) ===
+      JSON.stringify(['Form Shell Jacket', 'Field Wool Overshirt', 'Heavyweight Tee', 'Relaxed Pleat Trouser', 'Volume Hoodie', 'Rib Knit', 'Heavyweight Tee', 'Form Shell Jacket']),
+    runSeq.join(' > '),
+  );
+  await at('collection', 0.6);
   await page.waitForTimeout(400);
+  check('run panel links to the active piece', (await page.locator('.run__info a').getAttribute('href')) === '/shop/relaxed-pleat-trouser');
+  await page.locator('.run__nav').getByRole('button', { name: 'Rib Knit' }).click();
+  await page.waitForTimeout(1600);
+  check('run list button jumps to that piece', (await current('.run__nav')) === 'Rib Knit');
+
+  const angSeq = [];
+  for (const f of [0.1, 0.37, 0.63, 0.9, 0.37]) {
+    await at('angles', f);
+    await page.waitForTimeout(350);
+    angSeq.push(await current('.angles__list'));
+  }
+  check('angles step Front, Worn, Draped, Close and back', angSeq.join(',') === 'Front,Worn,Draped,Close,Worn', angSeq.join(','));
+
+  const diveSeq = [];
+  for (const f of [0.05, 0.3, 0.48, 0.64, 0.92, 0.3]) {
+    await at('details', f);
+    await page.waitForTimeout(350);
+    diveSeq.push(await current('.dive__steps'));
+  }
+  check('detail dive goes jacket, collar, zip pull, zip, weave and back', diveSeq.join(',') === 'Jacket,Collar,Zip pull,Zip,Weave,Collar', diveSeq.join(','));
+  await at('details', 0.92);
+  await page.waitForTimeout(300);
+  const layers = await page.evaluate(() => [...document.querySelectorAll('.dive__layer')].map((l) => +(+getComputedStyle(l).opacity).toFixed(2)));
+  check('only the weave layer shows at the end of the dive', layers[2] === 1 && layers[0] === 0 && layers[1] === 0, JSON.stringify(layers));
+
+  // Identity facts come from the catalogue
+  const facts = await page.locator('.fact dt').allInnerTexts();
+  check('identity facts read from the catalogue', facts.join('|') === '6|XS TO XL|6|CHF 65 TO 240', facts.join('|'));
 
   // Signup
   await page.locator('.signup').scrollIntoViewIfNeeded();
@@ -325,7 +330,7 @@ for (const [w, h] of [
 {
   const { page, ctx, errors } = await newPage(390, 844);
   await go(page, '/');
-  check('mobile hero fills viewport', await page.evaluate(() => document.querySelector('.hero').offsetHeight >= window.innerHeight - 2));
+  check('mobile hero fills viewport', await page.evaluate(() => document.querySelector('.cine-hero__sticky').offsetHeight >= window.innerHeight - 2));
   await page.screenshot({ path: 'verify-out/m390-hero.png' });
   check('desktop nav hidden, menu button visible', !(await page.locator('.site-header__nav').isVisible()) && (await page.getByRole('button', { name: 'Menu' }).isVisible()));
   await page.getByRole('button', { name: 'Menu' }).click();
@@ -336,16 +341,14 @@ for (const [w, h] of [
   await page.waitForURL('**/shop');
   check('menu link navigates and closes', (await page.locator('.overlay.is-shown').count()) === 0);
 
-  // Study gallery fallback
+  // Pinned chapters on a phone
   await go(page, '/');
-  check('mobile uses gallery, not pinned track', (await page.locator('.study__track').count()) === 0 && (await page.locator('.study__gallery').count()) === 1);
-  await page.locator('#study').scrollIntoViewIfNeeded();
-  await page.getByRole('button', { name: 'Next view' }).click();
-  await page.waitForTimeout(300);
-  check('next view updates annotation', (await page.locator('.study__note--static').innerText()).includes('Construction'));
-  await page.locator('.study').getByRole('button', { name: 'On body', exact: true }).click();
-  check('On body control works on mobile', (await page.locator('.study__note--static').innerText()).includes('Fit'));
-  await page.screenshot({ path: 'verify-out/m390-study.png' });
+  await page.locator('#collection').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  check('mobile run shows the active piece', (await page.locator('.run__name').innerText()).length > 0);
+  await page.locator('#details').scrollIntoViewIfNeeded();
+  await page.waitForTimeout(400);
+  check('mobile dive shows a step note', (await page.locator('.dive__note h3').count()) === 1);
 
   // PDP mobile: gallery nav, buy bar
   await go(page, '/shop/form-shell-jacket');
@@ -380,12 +383,15 @@ for (const [w, h] of [
 {
   const { page, ctx, errors } = await newPage(1440, 900, { reducedMotion: 'reduce' });
   await go(page, '/');
-  check('reduced motion replaces pinning with gallery', (await page.locator('.study__track').count()) === 0 && (await page.locator('.study__gallery').count()) === 1);
+  check(
+    'reduced motion replaces pinned chapters with static layouts',
+    (await page.locator('.run--static').count()) === 1 && (await page.locator('.angles--static').count()) === 1 && (await page.locator('.dive--static').count()) === 1,
+  );
   const hidden = await page.evaluate(() => [...document.querySelectorAll('.reveal')].filter((e) => getComputedStyle(e).opacity !== '1').length);
   check('reduced motion shows all content', hidden === 0, `hidden=${hidden}`);
-  const wm = await page.locator('.hero__wordmark').evaluate((e) => getComputedStyle(e).animationName);
-  check('reduced motion has no hero entrance animation', wm === 'none' || wm === 'rise' /* duration forced to 0 */);
-  const zoom = await page.locator('.hero__zoom').evaluate((e) => getComputedStyle(e).transform);
+  const wm = await page.locator('.cine-hero__photo').evaluate((e) => getComputedStyle(e).animationName);
+  check('reduced motion has no hero opening animation', wm === 'none', wm);
+  const zoom = await page.locator('.cine-hero__zoom').evaluate((e) => getComputedStyle(e).transform);
   check('reduced motion has no hero scale', zoom === 'none' || zoom === 'matrix(1, 0, 0, 1, 0, 0)', zoom);
   await ctx.close();
   check('no console errors reduced motion', errors.length === 0, errors.slice(0, 3).join(' | '));

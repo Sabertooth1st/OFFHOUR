@@ -18,7 +18,7 @@ export function Img({ image, sizes, priority, className, style, decorative }: Pr
     <img
       className={className}
       style={style}
-      src={plateSrc(image.id, meta.widths[1])}
+      src={plateSrc(image.id, meta.widths[Math.min(1, meta.widths.length - 1)])}
       srcSet={plateSrcSet(image.id)}
       sizes={sizes}
       width={meta.w}

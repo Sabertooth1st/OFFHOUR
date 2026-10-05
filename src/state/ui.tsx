@@ -7,7 +7,6 @@ export type OverlayState =
   | { kind: 'menu' }
   | { kind: 'search' }
   | { kind: 'info'; topic: InfoTopic }
-  | { kind: 'look'; lookId: string }
   | { kind: 'fabric'; slug: string };
 
 export const EXIT_MS = 300;

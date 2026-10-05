@@ -21,7 +21,7 @@ export function Footer() {
               <Link to="/shop">Shop</Link>
             </li>
             <li>
-              <HashLink hash="lookbook">Lookbook</HashLink>
+              <HashLink hash="details">Details</HashLink>
             </li>
             <li>
               <HashLink hash="about">About</HashLink>

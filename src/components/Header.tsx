@@ -43,7 +43,7 @@ export function Header() {
           <NavLink to="/shop" end={false}>
             Shop
           </NavLink>
-          <HashLink hash="lookbook">Lookbook</HashLink>
+          <HashLink hash="details">Details</HashLink>
           <HashLink hash="about">About</HashLink>
         </nav>
 

@@ -27,6 +27,8 @@ export interface Product {
   detail: ImageRef;
   /** Large close-up for the "View fabric" dialog. */
   fabric?: ImageRef;
+  /** Garment isolated on a transparent background, for the dark home stage. */
+  cutout?: ImageRef;
   featured?: boolean;
 }
 
@@ -56,8 +58,11 @@ export const PRODUCTS: Product[] = [
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     fit: 'Cropped, boxy shell with room through the shoulder. Stand collar, central zip and two large front pockets. Sits at the hip.',
     summary: 'A muted oxblood cropped shell with a stand collar, central zip and two large front pockets.',
-    ...imgs('form-shell-jacket', 'Form Shell Jacket'),
-    fabric: plate('jacket-fabric', 'Close-up of the oxblood shell fabric (placeholder plate)'),
+    garment: plate('jacket-front', 'Form Shell Jacket in oxblood, front view'),
+    onBody: plate('jacket-body', 'Model wearing the Form Shell Jacket open over a chalk tee and charcoal trousers'),
+    detail: plate('jacket-collar', 'Stand collar and zip pull of the Form Shell Jacket'),
+    fabric: plate('jacket-fabric', 'Close-up of the oxblood shell fabric weave'),
+    cutout: plate('jacket-cutout', 'Form Shell Jacket in oxblood, front view'),
     featured: true,
   },
   {
@@ -159,29 +164,3 @@ export function sortProducts(list: Product[], sort: SortKey): Product[] {
   else if (sort === 'name') out.sort((a, b) => a.name.localeCompare(b.name));
   return out;
 }
-
-export interface Look {
-  id: string;
-  title: string;
-  caption: string;
-  image: ImageRef;
-  /** Pieces the styled look is built from. Links come from this list only. */
-  pieces: string[];
-}
-
-export const LOOKS: Look[] = [
-  {
-    id: 'stairwell',
-    title: 'Stairwell, last light',
-    caption: 'The shell opened over a heavyweight tee, trousers cut to fall straight onto the step.',
-    image: plate('look-stairwell', 'Lookbook portrait, stairwell (placeholder plate)'),
-    pieces: ['form-shell-jacket', 'heavyweight-tee', 'relaxed-pleat-trouser'],
-  },
-  {
-    id: 'passage',
-    title: 'Passage',
-    caption: 'Soft layers for the walk between two rooms.',
-    image: plate('look-passage', 'Lookbook landscape, passageway (placeholder plate)'),
-    pieces: ['volume-hoodie', 'field-wool-overshirt'],
-  },
-];

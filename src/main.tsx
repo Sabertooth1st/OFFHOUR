@@ -11,6 +11,7 @@ import './styles/base.css';
 import './styles/layout.css';
 import './styles/components.css';
 import './styles/overlays.css';
+import './styles/home.css';
 
 // The hosted preview cannot rewrite URLs, so it builds with VITE_ROUTER=hash.
 const makeRouter = import.meta.env.VITE_ROUTER === 'hash' ? createHashRouter : createBrowserRouter;

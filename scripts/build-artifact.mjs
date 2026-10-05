@@ -21,4 +21,5 @@ const html = `<title>OFFHOUR Volume 01</title>
 `;
 await writeFile('artifact/index.html', html);
 await cp('public/img', 'artifact/img', { recursive: true });
+await cp('public/media', 'artifact/media', { recursive: true });
 console.log('artifact/index.html', (html.length / 1024).toFixed(0) + ' KB');
