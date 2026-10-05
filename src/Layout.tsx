@@ -7,7 +7,7 @@ import { BagProvider } from './state/bag';
 import { UiProvider, useUi } from './state/ui';
 
 function Shell() {
-  const { pathname } = useLocation();
+  const { pathname, key, state } = useLocation();
   const { message } = useUi();
   const first = useRef(true);
   const isHome = pathname === '/';
@@ -20,6 +20,14 @@ function Shell() {
     }
     document.getElementById('main')?.focus({ preventScroll: true });
   }, [pathname]);
+
+  // Section links under the hash router pass their target in location state.
+  useEffect(() => {
+    const target = (state as { scrollTo?: string } | null)?.scrollTo;
+    if (!target) return;
+    const id = requestAnimationFrame(() => document.getElementById(target)?.scrollIntoView());
+    return () => cancelAnimationFrame(id);
+  }, [key, state]);
 
   return (
     <>

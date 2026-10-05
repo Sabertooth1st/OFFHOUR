@@ -16,11 +16,13 @@ export const plate = (id: PlateId, alt: string): ImageRef => ({ id, alt });
 
 export const plateMeta = (id: PlateId) => plates[id];
 
+const BASE = import.meta.env.BASE_URL;
+
 export const plateSrc = (id: PlateId, width?: number) => {
   const widths = plates[id].widths;
   const w = width ?? widths[widths.length - 1];
-  return `/img/${id}-${w}.jpg`;
+  return `${BASE}img/${id}-${w}.jpg`;
 };
 
 export const plateSrcSet = (id: PlateId) =>
-  plates[id].widths.map((w) => `/img/${id}-${w}.jpg ${w}w`).join(', ');
+  plates[id].widths.map((w) => `${BASE}img/${id}-${w}.jpg ${w}w`).join(', ');

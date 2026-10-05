@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { createBrowserRouter, createHashRouter, RouterProvider } from 'react-router-dom';
 import Layout from './Layout';
 import Collection from './pages/Collection';
 import Home from './pages/Home';
@@ -12,7 +12,10 @@ import './styles/layout.css';
 import './styles/components.css';
 import './styles/overlays.css';
 
-const router = createBrowserRouter([
+// The hosted preview cannot rewrite URLs, so it builds with VITE_ROUTER=hash.
+const makeRouter = import.meta.env.VITE_ROUTER === 'hash' ? createHashRouter : createBrowserRouter;
+
+const router = makeRouter([
   {
     element: <Layout />,
     children: [
