@@ -1,0 +1,82 @@
+/* Fonts are self-hosted (latin subset). Archivo carries the condensed display, Hanken Grotesk the interface.
+   Both are SIL Open Font License; licences sit next to the files in src/fonts. */
+@font-face {
+  font-family: 'Archivo';
+  src: url('../fonts/archivo-latin-wdth-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-stretch: 62% 125%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Hanken Grotesk';
+  src: url('../fonts/hanken-grotesk-latin-wght-normal.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+/* Metric-adjusted fallbacks so the swap barely moves the layout. */
+@font-face {
+  font-family: 'Archivo Fallback';
+  src: local('Arial Narrow'), local('Arial');
+  size-adjust: 84%;
+  ascent-override: 94%;
+  descent-override: 24%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Hanken Fallback';
+  src: local('Arial');
+  size-adjust: 101%;
+  ascent-override: 96%;
+  descent-override: 26%;
+  line-gap-override: 0%;
+}
+
+:root {
+  color-scheme: light;
+
+  /* Brand tokens from the brief */
+  --chalk: #eeece5;
+  --charcoal: #20211f;
+  --concrete: #b6b7b0;
+  --oxblood: #74333d;
+
+  /* Derived neutrals (same hue family, used sparingly) */
+  --ink-2: #4a4b47;
+  --chalk-2: #e4e2da;
+  --oxblood-deep: #4a1d24;
+  --rule: rgba(32, 33, 31, 0.22);
+  --rule-dark: rgba(238, 236, 229, 0.28);
+
+  --font-display: 'Archivo', 'Archivo Fallback', 'Arial Narrow', Arial, sans-serif;
+  --font-body: 'Hanken Grotesk', 'Hanken Fallback', Arial, system-ui, sans-serif;
+
+  --margin: 20px;
+  --gap: 12px;
+  --max: 1760px;
+  --header-h: 60px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --t-fast: 180ms;
+  --t-panel: 300ms;
+
+  /* z-index scale */
+  --z-header: 30;
+  --z-buybar: 25;
+  --z-overlay: 60;
+  --z-skip: 100;
+}
+
+@media (min-width: 640px) {
+  :root {
+    --margin: 32px;
+    --gap: 16px;
+  }
+}
+@media (min-width: 1100px) {
+  :root {
+    --margin: 56px;
+    --gap: 24px;
+  }
+}

@@ -1,0 +1,418 @@
+// End-to-end checks against a running preview (npm run build && npm run preview).
+// Usage: node scripts/verify.mjs [baseUrl]
+import { chromium } from 'playwright-core';
+import { mkdir } from 'node:fs/promises';
+
+const BASE = process.argv[2] ?? 'http://127.0.0.1:4173';
+const CHROME = process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome';
+await mkdir('verify-out', { recursive: true });
+
+const results = [];
+const check = (name, ok, detail = '') => {
+  results.push({ name, ok: Boolean(ok), detail });
+  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? '  ' + detail : ''}`);
+};
+
+const browser = await chromium.launch({ executablePath: CHROME, args: ['--no-sandbox'] });
+
+async function newPage(width, height, opts = {}) {
+  const ctx = await browser.newContext({
+    viewport: { width, height },
+    deviceScaleFactor: 1,
+    hasTouch: width < 700,
+    isMobile: width < 700,
+    ...opts,
+  });
+  const page = await ctx.newPage();
+  const errors = [];
+  page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
+  page.on('pageerror', (e) => errors.push(String(e)));
+  // Lazy images cancelled by a navigation are not errors.
+  page.on('requestfailed', (r) => r.failure()?.errorText !== 'net::ERR_ABORTED' && errors.push('requestfailed ' + r.url()));
+  page.on('response', (r) => r.status() >= 400 && errors.push(`${r.status()} ${r.url()}`));
+  return { page, ctx, errors };
+}
+
+const go = async (page, path) => {
+  await page.goto(BASE + path, { waitUntil: 'networkidle' });
+  await page.waitForTimeout(500);
+};
+const scrollY = (page) => page.evaluate(() => window.scrollY);
+const bagLabel = (page) => page.locator('.site-header .hdr-btn', { hasText: /^Bag/ }).first().innerText();
+
+/* ---------- 1. Layout at four widths ---------- */
+for (const [w, h] of [
+  [360, 740],
+  [390, 844],
+  [768, 1024],
+  [1440, 900],
+]) {
+  const { page, ctx, errors } = await newPage(w, h);
+  for (const path of ['/', '/shop', '/shop/form-shell-jacket', '/shop/rib-knit']) {
+    await go(page, path);
+    const m = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth }));
+    check(`no horizontal overflow ${w}px ${path}`, m.sw <= m.cw, `${m.sw}/${m.cw}`);
+    // scroll to the end to trigger lazy images and reveals
+    await page.evaluate(async () => {
+      for (let y = 0; y < document.body.scrollHeight; y += 700) {
+        window.scrollTo(0, y);
+        await new Promise((r) => setTimeout(r, 30));
+      }
+    });
+    await page.waitForTimeout(400);
+    const broken = await page.evaluate(() =>
+      [...document.images].filter((i) => i.complete && i.naturalWidth === 0).map((i) => i.src),
+    );
+    check(`no broken images ${w}px ${path}`, broken.length === 0, broken.join(','));
+  }
+  check(`no console errors ${w}px`, errors.length === 0, errors.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+
+/* ---------- 2. Desktop flows ---------- */
+{
+  const { page, ctx, errors } = await newPage(1440, 900);
+  await go(page, '/');
+
+  // Navigation
+  await page.getByRole('link', { name: 'Shop', exact: true }).first().click();
+  await page.waitForURL('**/shop');
+  check('nav Shop opens collection', page.url().endsWith('/shop'));
+  await page.getByRole('link', { name: 'Lookbook', exact: true }).first().click();
+  await page.waitForTimeout(700);
+  const lookTop = await page.evaluate(() => document.getElementById('lookbook')?.getBoundingClientRect().top ?? 9999);
+  check('Lookbook link lands on section', page.url().includes('#lookbook') && lookTop < 140 && lookTop > -40, `top=${Math.round(lookTop)}`);
+  await page.getByRole('link', { name: 'About', exact: true }).first().click();
+  await page.waitForTimeout(700);
+  const aboutTop = await page.evaluate(() => document.getElementById('about')?.getBoundingClientRect().top ?? 9999);
+  check('About link lands on section', page.url().includes('#about') && aboutTop < 140 && aboutTop > -40, `top=${Math.round(aboutTop)}`);
+  await page.getByRole('link', { name: 'OFFHOUR, home' }).click();
+  await page.waitForTimeout(400);
+  check('logo returns home', new URL(page.url()).pathname === '/');
+
+  // Header state
+  await go(page, '/');
+  const overAtTop = await page.locator('.site-header').evaluate((el) => el.classList.contains('is-over'));
+  await page.evaluate(() => window.scrollTo(0, window.innerHeight + 200));
+  await page.waitForTimeout(500);
+  const solidAfter = await page.locator('.site-header').evaluate((el) => el.classList.contains('is-solid'));
+  check('header over hero then solid after it', overAtTop && solidAfter);
+
+  // Search
+  const searchBtn = page.getByRole('button', { name: 'Search', exact: true });
+  await searchBtn.click();
+  await page.waitForTimeout(500);
+  check('search focuses input', await page.evaluate(() => document.activeElement?.id === 'search-input'));
+  await page.keyboard.type('knit');
+  await page.waitForTimeout(200);
+  const hits = await page.locator('.search-item').allInnerTexts();
+  check('search finds Rib Knit only', hits.length === 1 && hits[0].includes('Rib Knit') && hits[0].includes('CHF 165'), hits.join('|'));
+  await page.fill('#search-input', 'zzzz');
+  check('search empty state', (await page.locator('.search-empty').count()) === 1);
+  await page.fill('#search-input', 'jacket');
+  check('search by type finds jacket', (await page.locator('.search-item').count()) === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(450);
+  check('Escape closes search and returns focus', await page.evaluate(() => document.activeElement?.textContent?.trim() === 'Search'));
+  check('page inert released', await page.evaluate(() => !document.getElementById('root')?.hasAttribute('inert')));
+
+  // Collection filter / sort / state across navigation
+  await go(page, '/shop');
+  await page.getByRole('button', { name: 'Outerwear' }).click();
+  await page.waitForTimeout(200);
+  check('filter outerwear shows 2', (await page.locator('.card').count()) === 2);
+  await page.selectOption('#sort', 'price-desc');
+  const names = await page.locator('.card__name').allInnerTexts();
+  check('sort price high to low', names[0] === 'Form Shell Jacket' && names[1] === 'Field Wool Overshirt', names.join(','));
+  await page.getByRole('button', { name: 'On body' }).click();
+  await page.locator('.card__name a').first().click();
+  await page.waitForURL('**/shop/form-shell-jacket');
+  await page.goBack();
+  await page.waitForTimeout(500);
+  const url = new URL(page.url());
+  check('Back preserves filter, sort and view', url.searchParams.get('cat') === 'outerwear' && url.searchParams.get('sort') === 'price-desc' && url.searchParams.get('view') === 'body' && (await page.locator('.card').count()) === 2, url.search);
+  await page.getByRole('button', { name: 'All', exact: true }).click();
+  await page.waitForTimeout(250);
+  check('All shows 6', (await page.locator('.card').count()) === 6);
+
+  // View toggle swaps primary image
+  await go(page, '/shop');
+  const before = await page.locator('.card__img').first().getAttribute('srcset');
+  await page.getByRole('button', { name: 'On body' }).click();
+  await page.waitForTimeout(200);
+  const after = await page.locator('.card__img').first().getAttribute('srcset');
+  check('Garment / On body toggle changes image', before !== after && after.includes('-body-'), after?.slice(0, 50));
+
+  // Hover crossfade without layout shift
+  await go(page, '/shop');
+  const card = page.locator('.card').first();
+  await card.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(300);
+  const boxBefore = await card.boundingBox();
+  await card.hover();
+  await page.waitForTimeout(350);
+  const boxAfter = await card.boundingBox();
+  const altOpacity = await card.locator('.card__img--alt').evaluate((e) => getComputedStyle(e).opacity);
+  check('hover crossfades alt image, no layout shift', altOpacity === '1' && boxBefore.height === boxAfter.height && boxBefore.y === boxAfter.y, `opacity=${altOpacity}`);
+
+  // Product page + bag
+  await go(page, '/shop/form-shell-jacket');
+  await page.getByRole('button', { name: 'Add to Bag' }).first().click();
+  await page.waitForTimeout(300);
+  const err = await page.locator('#size-error').innerText();
+  check('size required before adding', err.includes('Select a size') && (await bagLabel(page)).includes('(0)'), err);
+  check('focus moves to size group on error', await page.evaluate(() => document.activeElement?.getAttribute('name') === 'size'));
+  await page.locator('.size-opt', { hasText: /^M$/ }).click();
+  await page.getByRole('button', { name: 'Add to Bag' }).first().click();
+  await page.waitForTimeout(600);
+  check('drawer opens after add', (await page.locator('.overlay--drawer.is-shown').count()) === 1);
+  check('bag count 1', (await bagLabel(page)).includes('(1)'), await bagLabel(page));
+  let line = await page.locator('.bag-line').first().innerText();
+  check('bag line shows product, colour, size, price', line.includes('Form Shell Jacket') && line.includes('Oxblood') && line.includes('size M') && line.includes('CHF 240'), line.replace(/\n/g, ' / '));
+  await page.getByRole('button', { name: 'Increase quantity of Form Shell Jacket' }).click();
+  await page.waitForTimeout(150);
+  const sub = await page.locator('.bag-subtotal').innerText();
+  check('quantity 2 gives subtotal CHF 480', sub.includes('CHF 480'), sub.replace(/\n/g, ' '));
+  check('header count follows quantity', (await bagLabel(page)).includes('(2)'));
+  check('demo disclosure in bag', (await page.locator('.panel__foot').innerText()).includes('No purchase or payment will be processed'));
+  check('final action is Continue demo', (await page.getByRole('button', { name: 'Continue demo' }).count()) === 1);
+
+  // Focus trap
+  for (let i = 0; i < 14; i++) await page.keyboard.press('Tab');
+  check('focus stays inside drawer', await page.evaluate(() => !!document.activeElement?.closest('.overlay__panel')));
+  await page.getByRole('button', { name: 'Continue demo' }).click();
+  check('Continue demo explains nothing is processed', (await page.locator('.panel__body').innerText()).includes('nothing is ordered, charged or sent'));
+  await page.getByRole('button', { name: 'Back to bag' }).click();
+
+  // Persistence
+  await page.reload({ waitUntil: 'networkidle' });
+  check('bag persists across reload', (await bagLabel(page)).includes('(2)'), await bagLabel(page));
+  await page.getByRole('button', { name: /^Bag/ }).first().click();
+  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: 'Remove' }).click();
+  await page.waitForTimeout(200);
+  check('empty bag state', (await page.locator('.panel__body--empty').innerText()).includes('Your bag is empty'));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(450);
+  check('bag count back to 0', (await bagLabel(page)).includes('(0)'));
+  check('Escape from bag returns focus to Bag button', await page.evaluate(() => document.activeElement?.textContent?.includes('Bag')));
+
+  // Totals across two different pieces
+  await go(page, '/shop/rib-knit');
+  await page.locator('.size-opt', { hasText: /^S$/ }).click();
+  await page.getByRole('button', { name: 'Add to Bag' }).first().click();
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  await go(page, '/shop/heavyweight-tee');
+  await page.locator('.size-opt', { hasText: /^L$/ }).click();
+  await page.getByRole('button', { name: 'Add to Bag' }).first().click();
+  await page.waitForTimeout(500);
+  const sub2 = await page.locator('.bag-subtotal').innerText();
+  check('two pieces total CHF 230', sub2.includes('CHF 230'), sub2.replace(/\n/g, ' '));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+
+  // Size guide + care dialogs
+  await page.locator('.buy').getByRole('button', { name: 'Size guide' }).click();
+  await page.waitForTimeout(400);
+  check('size guide dialog open with table', (await page.locator('.size-table').count()) === 1);
+  await page.locator('.info-tabs').getByRole('button', { name: 'Garment care' }).click();
+  check('info dialog switches topic', (await page.locator('.info-list').count()) === 1);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+
+  // Fabric close-up
+  await go(page, '/shop/form-shell-jacket');
+  await page.getByRole('button', { name: 'View fabric' }).click();
+  await page.waitForTimeout(500);
+  check('fabric close-up opens with close focus', await page.evaluate(() => document.activeElement?.textContent?.includes('Close')));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  check('fabric closes, focus returns', await page.evaluate(() => document.activeElement?.textContent?.trim() === 'View fabric'));
+  check('only the featured jacket has View fabric', (await (async () => { await go(page, '/shop/rib-knit'); return page.getByRole('button', { name: 'View fabric' }).count(); })()) === 0);
+
+  // Unknown product
+  await go(page, '/shop/does-not-exist');
+  check('unknown product shows not found', (await page.locator('.notfound').count()) === 1);
+
+  // Garment study: both directions
+  await go(page, '/');
+  const geo = await page.evaluate(() => {
+    const t = document.querySelector('.study__track');
+    const r = t.getBoundingClientRect();
+    return { top: r.top + window.scrollY, h: t.offsetHeight, vh: window.innerHeight };
+  });
+  check('study track is about two viewports tall', Math.abs(geo.h - geo.vh * 2) < 4, `${geo.h} vs ${geo.vh * 2}`);
+  const dist = geo.h - (geo.vh - 60);
+  const start = geo.top - 60;
+  const active = () => page.evaluate(() => [...document.querySelectorAll('.study .seg button')].findIndex((b) => b.getAttribute('aria-pressed') === 'true'));
+  const seq = [];
+  for (const f of [0.05, 0.5, 0.95, 0.5, 0.05]) {
+    await page.evaluate((y) => window.scrollTo(0, y), start + dist * f);
+    await page.waitForTimeout(350);
+    seq.push(await active());
+  }
+  check('study follows scroll down and back up', JSON.stringify(seq) === '[0,1,2,1,0]', JSON.stringify(seq));
+  await page.evaluate((y) => window.scrollTo(0, y), start + dist * 0.5);
+  await page.waitForTimeout(300);
+  const op = await page.evaluate(() => [...document.querySelectorAll('.study__stage .study__layer')].map((l) => +getComputedStyle(l).opacity));
+  check('only garment layer visible mid-study', op[1] > 0.95 && op[0] < 0.05 && op[2] < 0.05, JSON.stringify(op.map((n) => +n.toFixed(2))));
+  await page.screenshot({ path: 'verify-out/study-mid.png' });
+  await page.locator('.study').getByRole('button', { name: 'On body', exact: true }).click();
+  await page.waitForTimeout(1500);
+  check('On body control jumps and stays in sync', (await active()) === 2);
+  await page.locator('.study').getByRole('button', { name: 'Fabric', exact: true }).click();
+  await page.waitForTimeout(1500);
+  check('Fabric control jumps back', (await active()) === 0);
+
+  // Lookbook mapping
+  await go(page, '/');
+  await page.locator('#lookbook').scrollIntoViewIfNeeded();
+  const lookBtns = page.getByRole('button', { name: 'Shop this look' });
+  await lookBtns.nth(0).click();
+  await page.waitForTimeout(500);
+  const look1 = await page.locator('.look-item').allInnerTexts();
+  check('look 1 lists its three pieces with prices', look1.length === 3 && look1[0].includes('Form Shell Jacket') && look1[0].includes('CHF 240') && look1[1].includes('Heavyweight Tee') && look1[2].includes('Relaxed Pleat Trouser'), look1.map((s) => s.replace(/\n/g, ' ')).join(' | '));
+  await page.locator('.look-item').first().click();
+  await page.waitForURL('**/shop/form-shell-jacket');
+  check('look piece link opens product', true);
+  await go(page, '/');
+  await page.locator('#lookbook').scrollIntoViewIfNeeded();
+  await lookBtns.nth(1).click();
+  await page.waitForTimeout(500);
+  const look2 = await page.locator('.look-item').allInnerTexts();
+  check('look 2 lists its two pieces', look2.length === 2 && look2[0].includes('Volume Hoodie') && look2[1].includes('Field Wool Overshirt'), look2.map((s) => s.replace(/\n/g, ' ')).join(' | '));
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+
+  // Signup
+  await page.locator('.signup').scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Notify me' }).click();
+  check('signup empty error', (await page.locator('.field__error').innerText()).includes('Enter your email'));
+  await page.fill('.signup input', 'nope');
+  await page.getByRole('button', { name: 'Notify me' }).click();
+  check('signup invalid error', (await page.locator('.field__error').innerText()).includes('Check the address'));
+  let leaked = false;
+  page.on('request', (r) => {
+    if (r.method() === 'POST') leaked = true;
+  });
+  await page.fill('.signup input', 'name@example.com');
+  await page.getByRole('button', { name: 'Notify me' }).click();
+  check('signup success is honest about being a demo', (await page.locator('.signup__done').innerText()).includes('demo') && !leaked);
+
+  // Fast scroll: nothing left hidden above the viewport
+  await go(page, '/');
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await page.waitForTimeout(700);
+  const hiddenAbove = await page.evaluate(() =>
+    [...document.querySelectorAll('.reveal:not(.is-in)')].filter((e) => e.getBoundingClientRect().bottom < 0).length,
+  );
+  check('fast jump to bottom leaves no hidden content above', hiddenAbove === 0, `hidden=${hiddenAbove}`);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(700);
+
+  // Keyboard: skip link and visible focus
+  await go(page, '/');
+  await page.keyboard.press('Tab');
+  check('skip link is first tab stop', await page.evaluate(() => document.activeElement?.classList.contains('skip-link')));
+
+  check('no console errors on desktop flows', errors.length === 0, errors.slice(0, 4).join(' | '));
+  await ctx.close();
+}
+
+/* ---------- 3. Mobile flows ---------- */
+{
+  const { page, ctx, errors } = await newPage(390, 844);
+  await go(page, '/');
+  check('mobile hero fills viewport', await page.evaluate(() => document.querySelector('.hero').offsetHeight >= window.innerHeight - 2));
+  await page.screenshot({ path: 'verify-out/m390-hero.png' });
+  check('desktop nav hidden, menu button visible', !(await page.locator('.site-header__nav').isVisible()) && (await page.getByRole('button', { name: 'Menu' }).isVisible()));
+  await page.getByRole('button', { name: 'Menu' }).click();
+  await page.waitForTimeout(500);
+  check('menu opens with links', (await page.locator('.menu-list a').count()) === 3);
+  await page.screenshot({ path: 'verify-out/m390-menu.png' });
+  await page.locator('.menu-list a', { hasText: 'Shop' }).click();
+  await page.waitForURL('**/shop');
+  check('menu link navigates and closes', (await page.locator('.overlay.is-shown').count()) === 0);
+
+  // Study gallery fallback
+  await go(page, '/');
+  check('mobile uses gallery, not pinned track', (await page.locator('.study__track').count()) === 0 && (await page.locator('.study__gallery').count()) === 1);
+  await page.locator('#study').scrollIntoViewIfNeeded();
+  await page.getByRole('button', { name: 'Next view' }).click();
+  await page.waitForTimeout(300);
+  check('next view updates annotation', (await page.locator('.study__note--static').innerText()).includes('Construction'));
+  await page.locator('.study').getByRole('button', { name: 'On body', exact: true }).click();
+  check('On body control works on mobile', (await page.locator('.study__note--static').innerText()).includes('Fit'));
+  await page.screenshot({ path: 'verify-out/m390-study.png' });
+
+  // PDP mobile: gallery nav, buy bar
+  await go(page, '/shop/form-shell-jacket');
+  await page.getByRole('button', { name: 'Next image' }).click();
+  await page.waitForTimeout(700);
+  check('gallery next shows 2 / 3', (await page.locator('.gallery__count').innerText()).includes('2 / 3'));
+  await page.locator('.gallery').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(700);
+  check('gallery arrow key shows 3 / 3', (await page.locator('.gallery__count').innerText()).includes('3 / 3'));
+  await page.screenshot({ path: 'verify-out/m390-pdp.png' });
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(500);
+  check('mobile buy bar appears when inline CTA is off screen', await page.locator('.buybar').evaluate((e) => e.classList.contains('is-visible')));
+  await page.locator('.buy .btn--solid').scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, -200));
+  await page.waitForTimeout(500);
+  check('buy bar hides while the inline CTA is on screen', !(await page.locator('.buybar').evaluate((e) => e.classList.contains('is-visible'))));
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(500);
+  await page.locator('.buybar').getByRole('button', { name: 'Add to Bag' }).click();
+  await page.waitForTimeout(400);
+  check('buy bar requires size too', (await page.locator('#size-error').innerText()).includes('Select a size'));
+  await page.locator('.size-opt', { hasText: /^S$/ }).click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'verify-out/m390-pdp-size.png' });
+  await ctx.close();
+  check('no console errors on mobile', errors.length === 0, errors.slice(0, 3).join(' | '));
+}
+
+/* ---------- 4. Reduced motion ---------- */
+{
+  const { page, ctx, errors } = await newPage(1440, 900, { reducedMotion: 'reduce' });
+  await go(page, '/');
+  check('reduced motion replaces pinning with gallery', (await page.locator('.study__track').count()) === 0 && (await page.locator('.study__gallery').count()) === 1);
+  const hidden = await page.evaluate(() => [...document.querySelectorAll('.reveal')].filter((e) => getComputedStyle(e).opacity !== '1').length);
+  check('reduced motion shows all content', hidden === 0, `hidden=${hidden}`);
+  const wm = await page.locator('.hero__wordmark').evaluate((e) => getComputedStyle(e).animationName);
+  check('reduced motion has no hero entrance animation', wm === 'none' || wm === 'rise' /* duration forced to 0 */);
+  const zoom = await page.locator('.hero__zoom').evaluate((e) => getComputedStyle(e).transform);
+  check('reduced motion has no hero scale', zoom === 'none' || zoom === 'matrix(1, 0, 0, 1, 0, 0)', zoom);
+  await ctx.close();
+  check('no console errors reduced motion', errors.length === 0, errors.slice(0, 3).join(' | '));
+}
+
+/* ---------- 5. Storage unavailable ---------- */
+{
+  const { page, ctx } = await newPage(1440, 900);
+  await page.addInitScript(() => {
+    Object.defineProperty(window, 'localStorage', {
+      get() {
+        throw new Error('blocked');
+      },
+    });
+  });
+  await go(page, '/shop/rib-knit');
+  await page.locator('.size-opt', { hasText: /^M$/ }).click();
+  await page.getByRole('button', { name: 'Add to Bag' }).first().click();
+  await page.waitForTimeout(500);
+  check('bag still works with storage blocked', (await bagLabel(page)).includes('(1)'));
+  await ctx.close();
+}
+
+await browser.close();
+const failed = results.filter((r) => !r.ok);
+console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
+if (failed.length) {
+  console.log('FAILED:\n' + failed.map((f) => ` - ${f.name} ${f.detail}`).join('\n'));
+  process.exit(1);
+}

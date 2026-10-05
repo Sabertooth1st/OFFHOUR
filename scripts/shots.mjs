@@ -1,0 +1,54 @@
+// Screenshot tour used for visual review: node scripts/shots.mjs
+import { chromium } from 'playwright-core';
+const BASE = 'http://127.0.0.1:4173';
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--no-sandbox'] });
+async function page(w, h) {
+  const ctx = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: w < 700, isMobile: w < 700 });
+  const p = await ctx.newPage();
+  await p.goto(BASE + '/', { waitUntil: 'networkidle' });
+  return p;
+}
+const d = await page(1440, 900);
+await d.goto(BASE + '/shop/form-shell-jacket', { waitUntil: 'networkidle' });
+await d.locator('.size-opt', { hasText: /^M$/ }).click();
+await d.getByRole('button', { name: 'Add to Bag' }).first().click();
+await d.waitForTimeout(700);
+await d.screenshot({ path: 'verify-out/o-bag.png' });
+await d.keyboard.press('Escape');
+await d.waitForTimeout(400);
+await d.getByRole('button', { name: 'Search', exact: true }).click();
+await d.waitForTimeout(500);
+await d.keyboard.type('o');
+await d.waitForTimeout(300);
+await d.screenshot({ path: 'verify-out/o-search.png' });
+await d.keyboard.press('Escape');
+await d.waitForTimeout(400);
+await d.locator('.buy').getByRole('button', { name: 'Size guide' }).click();
+await d.waitForTimeout(500);
+await d.screenshot({ path: 'verify-out/o-info.png' });
+await d.keyboard.press('Escape');
+await d.waitForTimeout(400);
+await d.getByRole('button', { name: 'View fabric' }).click();
+await d.waitForTimeout(500);
+await d.screenshot({ path: 'verify-out/o-fabric.png' });
+await d.keyboard.press('Escape');
+await d.goto(BASE + '/', { waitUntil: 'networkidle' });
+await d.locator('#lookbook').scrollIntoViewIfNeeded();
+await d.getByRole('button', { name: 'Shop this look' }).first().click();
+await d.waitForTimeout(600);
+await d.screenshot({ path: 'verify-out/o-look.png' });
+
+const t = await page(768, 1024);
+await t.screenshot({ path: 'verify-out/t768-hero.png' });
+await t.evaluate(() => window.scrollTo(0, 1100));
+await t.waitForTimeout(800);
+await t.screenshot({ path: 'verify-out/t768-a.png' });
+const m = await page(360, 740);
+await m.screenshot({ path: 'verify-out/m360-hero.png' });
+await m.evaluate(() => window.scrollTo(0, 900));
+await m.waitForTimeout(800);
+await m.screenshot({ path: 'verify-out/m360-a.png' });
+await m.evaluate(() => window.scrollTo(0, 1700));
+await m.waitForTimeout(800);
+await m.screenshot({ path: 'verify-out/m360-b.png' });
+await browser.close();

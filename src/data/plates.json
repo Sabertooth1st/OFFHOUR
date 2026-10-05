@@ -1,0 +1,218 @@
+{
+  "hero": {
+    "w": 2560,
+    "h": 1707,
+    "widths": [
+      1280,
+      1920,
+      2560
+    ]
+  },
+  "hero-m": {
+    "w": 1280,
+    "h": 1920,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "brand-chair": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "form-shell-jacket-garment": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "form-shell-jacket-body": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "form-shell-jacket-detail": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "field-wool-overshirt-garment": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "field-wool-overshirt-body": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "field-wool-overshirt-detail": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "heavyweight-tee-garment": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "heavyweight-tee-body": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "heavyweight-tee-detail": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "relaxed-pleat-trouser-garment": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "relaxed-pleat-trouser-body": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "relaxed-pleat-trouser-detail": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "volume-hoodie-garment": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "volume-hoodie-body": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "volume-hoodie-detail": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "rib-knit-garment": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "rib-knit-body": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "rib-knit-detail": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "jacket-fabric": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "look-stairwell": {
+    "w": 1280,
+    "h": 1600,
+    "widths": [
+      640,
+      960,
+      1280
+    ]
+  },
+  "look-passage": {
+    "w": 1920,
+    "h": 1280,
+    "widths": [
+      960,
+      1440,
+      1920
+    ]
+  }
+}
