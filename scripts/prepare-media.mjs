@@ -40,5 +40,11 @@ await emit('jacket-collar', src('jacket/collar.webp'), { widths: [640, 960, 1122
 // Fabric close-up: plain weave from the lower left of the collar photograph, away from the zip.
 await emit('jacket-fabric', src('jacket/collar.webp'), { widths: [466], extract: { left: 0, top: 820, width: 466, height: 582 } });
 
+// Volume 01 pieces: studio cutouts (generated concept photography) for the home stage, plus card versions on chalk.
+for (const slug of ['field-wool-overshirt', 'heavyweight-tee', 'relaxed-pleat-trouser', 'volume-hoodie', 'rib-knit']) {
+  await emit(`${slug}-cutout`, src(`pieces/${slug}-cutout.webp`), { widths: [480, 800, 1000], quality: 84 });
+  await emit(`${slug}-front`, src(`pieces/${slug}-cutout.webp`), { widths: [480, 800, 1000], flatten: '#e4e2da' });
+}
+
 await writeFile(path.join(root, 'src', 'data', 'media.json'), JSON.stringify(manifest, null, 2) + '\n');
 console.log('manifest written');

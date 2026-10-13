@@ -64,5 +64,95 @@
     "widths": [
       466
     ]
+  },
+  "field-wool-overshirt-cutout": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "field-wool-overshirt-front": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "heavyweight-tee-cutout": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "heavyweight-tee-front": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "relaxed-pleat-trouser-cutout": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "relaxed-pleat-trouser-front": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "volume-hoodie-cutout": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "volume-hoodie-front": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "rib-knit-cutout": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
+  },
+  "rib-knit-front": {
+    "w": 1000,
+    "h": 1250,
+    "widths": [
+      480,
+      800,
+      1000
+    ]
   }
 }

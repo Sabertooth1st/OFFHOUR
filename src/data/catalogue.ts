@@ -42,9 +42,10 @@ export const COLOURS: Record<ColourId, Colour> = {
 };
 
 const imgs = (slug: string, label: string) => ({
-  garment: plate(`${slug}-garment` as PlateId, `${label}, garment view (placeholder plate)`),
+  garment: plate(`${slug}-front` as PlateId, `${label}, front view`),
   onBody: plate(`${slug}-body` as PlateId, `${label}, on body (placeholder plate)`),
   detail: plate(`${slug}-detail` as PlateId, `${label}, detail (placeholder plate)`),
+  cutout: plate(`${slug}-cutout` as PlateId, `${label}, front view`),
 });
 
 export const PRODUCTS: Product[] = [
@@ -75,7 +76,7 @@ export const PRODUCTS: Product[] = [
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     fit: 'Relaxed overshirt cut long enough to wear open over a tee. Two chest pockets and a straight hem.',
     summary: 'A concrete grey woollen overshirt with a relaxed, straight cut.',
-    ...imgs('field-wool-overshirt', 'Field Wool Overshirt'),
+    ...imgs('field-wool-overshirt', 'Field Wool Overshirt in concrete grey'),
   },
   {
     slug: 'heavyweight-tee',
@@ -87,7 +88,7 @@ export const PRODUCTS: Product[] = [
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     fit: 'Square, heavyweight tee with a wide neck rib and a slightly dropped shoulder.',
     summary: 'A chalk heavyweight jersey tee with a square, easy fit.',
-    ...imgs('heavyweight-tee', 'Heavyweight Tee'),
+    ...imgs('heavyweight-tee', 'Heavyweight Tee in chalk'),
   },
   {
     slug: 'relaxed-pleat-trouser',
@@ -99,7 +100,7 @@ export const PRODUCTS: Product[] = [
     sizes: ['S', 'M', 'L', 'XL'],
     fit: 'Relaxed through the hip with a single forward pleat and a straight, full-length leg.',
     summary: 'Charcoal tailored trousers with a forward pleat and a straight leg.',
-    ...imgs('relaxed-pleat-trouser', 'Relaxed Pleat Trouser'),
+    ...imgs('relaxed-pleat-trouser', 'Relaxed Pleat Trouser in charcoal'),
   },
   {
     slug: 'volume-hoodie',
@@ -111,7 +112,7 @@ export const PRODUCTS: Product[] = [
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     fit: 'Roomy hoodie with a deep hood, dropped shoulder and a kangaroo pocket. Washed for a softer, lived-in surface.',
     summary: 'A washed charcoal hoodie with a deep hood and generous body.',
-    ...imgs('volume-hoodie', 'Volume Hoodie'),
+    ...imgs('volume-hoodie', 'Volume Hoodie in washed charcoal'),
   },
   {
     slug: 'rib-knit',
@@ -123,7 +124,7 @@ export const PRODUCTS: Product[] = [
     sizes: ['XS', 'S', 'M', 'L', 'XL'],
     fit: 'Textured rib knit with a close neck and a relaxed body. Layers under the Form Shell Jacket.',
     summary: 'An oat rib knit with a close neck and a relaxed body.',
-    ...imgs('rib-knit', 'Rib Knit'),
+    ...imgs('rib-knit', 'Rib Knit in oat'),
   },
 ];
 
